@@ -26,7 +26,6 @@ public class EnvironmentalMonitoring : MonoBehaviour
         {
             Debug.DrawLine(playerTransform.position + Vector3.up * k_Half, playerTransform.position + Vector3.up * k_Half + playerTransform.forward);
             climbHitNormal = firstHit.normal;
-            Debug.Log("µÍÎ»Í¨¹ý" + firstHit.normal);
             if(Vector3.Angle (playerTransform.forward,-climbHitNormal) > 45f)
              {
                 return PlayerEnvironmentalMonitoring.Jump;
