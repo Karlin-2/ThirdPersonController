@@ -2,7 +2,7 @@
     "name": "Player Contorller",
     "maps": [
         {
-            "name": "Player",
+            "name": "Players",
             "id": "c2ffa36e-7012-47f9-80e6-1991fb74b012",
             "actions": [
                 {
@@ -45,6 +45,15 @@
                     "name": "Jump",
                     "type": "Button",
                     "id": "61e6dd93-66b3-45f9-988a-e2fa33ab6577",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Clamping",
+                    "type": "Button",
+                    "id": "e31a07dd-390e-4462-9429-6a9e4b0e0746",
                     "expectedControlType": "Button",
                     "processors": "",
                     "interactions": "",
@@ -146,8 +155,19 @@
                     "path": "<Keyboard>/space",
                     "interactions": "",
                     "processors": "",
-                    "groups": "",
+                    "groups": "KeyBoard&Mouse",
                     "action": "Jump",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "7e723098-19b6-4ecb-8f8b-b77843ac24ac",
+                    "path": "<Keyboard>/e",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Clamping",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
@@ -166,6 +186,17 @@
                 },
                 {
                     "devicePath": "<Mouse>",
+                    "isOptional": false,
+                    "isOR": false
+                }
+            ]
+        },
+        {
+            "name": "Gamepad",
+            "bindingGroup": "Gamepad",
+            "devices": [
+                {
+                    "devicePath": "<Gamepad>",
                     "isOptional": false,
                     "isOR": false
                 }

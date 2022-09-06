@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+
 public class ThirdPesonContorller : MonoBehaviour
 {
     Transform _playerTransform;
@@ -9,6 +10,10 @@ public class ThirdPesonContorller : MonoBehaviour
     Transform _cameraTransform;
     CharacterController character;
     public LayerMask layerMask;
+    #region 计时器
+    public float fallTimer;
+    public float fallTimeoutDelay = 5f;
+    #endregion
     #region 角色位移相关
     Vector3 playerMovement = Vector3.zero;
     Vector3 averageVel = Vector3.zero;
@@ -30,23 +35,28 @@ public class ThirdPesonContorller : MonoBehaviour
         Falling,//下落状态
         Jumping,//跳跃状态
         Landing//落地状态
+        //Clamp
     }
     [HideInInspector]
     public EmptyHandGesture emptyHandGesture = EmptyHandGesture.Stand;
     float crouchThreshould = -0.1f;
     float standThreshould = 1f;
     float durationThreshould = 2.1f;
+    float landingThreshould;
     float characterCapHeight;
     float characterCapHalfHeight;
+    public float JumpCD = 1.5f;
     Vector3 characterCapCenter;
     Vector3 characterCapHalfCenter;
+    //Vector3 charaterTop;
     bool isNot2Stand;
 
     public enum LocomotionState
     {
         Idle,
         Wlak,
-        Run
+        Run,
+        //Clamping
     }
     [HideInInspector]
     public LocomotionState locomotion = LocomotionState.Idle;
@@ -63,6 +73,7 @@ public class ThirdPesonContorller : MonoBehaviour
     #endregion
     #region 输入相关
     Vector2 movementInput;
+    Vector3 InputDir;
     bool isRunning;
     bool isCrouch;
     bool isAiming;
@@ -70,6 +81,8 @@ public class ThirdPesonContorller : MonoBehaviour
     bool isGround;
     bool couldFalling;
     bool m_isCrouching;
+    bool isClamp;
+    bool m_isClamping;
     #endregion
     #region 哈希值动画ID
     int stateHash;
@@ -79,11 +92,15 @@ public class ThirdPesonContorller : MonoBehaviour
     int legGestureHash;
     int leftFootHash;
     int rightFootHash;
+    int isHightLanding;
+    int fallHeight;
     #endregion
     //角色前3帧速度缓存池
     static readonly int CACHE_SIZE = 3;
     Vector3[] velCache = new Vector3[CACHE_SIZE];
     int velCacheIndex;
+    private bool isLanding;
+
     void Start()
     {
         //初始化角色位置
@@ -97,9 +114,11 @@ public class ThirdPesonContorller : MonoBehaviour
         //初始化角色碰撞器高度位置
         characterCapHeight = character.height;
         characterCapCenter = character.center;
+        //charaterTop.y = characterCapHeight;
         characterCapHalfHeight = characterCapHeight / 2f;
         characterCapHalfCenter = characterCapCenter / 2f;
-
+        //初始化计时器
+        fallTimer = fallTimeoutDelay;
       
     }
     private void Awake()
@@ -116,7 +135,6 @@ public class ThirdPesonContorller : MonoBehaviour
         PlayerDirection();
         SetAnimator();
         ScaleCapsuleForCrouching();
-       
     }
     private void OnAnimatorMove()
     {
@@ -223,6 +241,10 @@ public class ThirdPesonContorller : MonoBehaviour
     {
         isJumping = ctx.ReadValueAsButton();
     }
+    public void GetClamping(InputAction.CallbackContext ctx)
+    {
+        isClamp = ctx.ReadValueAsButton();
+    }
     #endregion
     /// <summary>
     /// 计算起跳前的前三帧的平均速度
@@ -248,14 +270,13 @@ public class ThirdPesonContorller : MonoBehaviour
     private void ScaleCapsuleForCrouching() 
     {
         
-        if (isCrouch && !isJumping || isNot2Stand)
+        if (isCrouch && isGround || isNot2Stand)
         {
-            if (isGround )
-            {
+          
                 m_isCrouching = true;
                 character.height = characterCapHalfHeight;
                 character.center = characterCapHalfCenter;
-            }            
+                     
         }
         else
         {
@@ -296,6 +317,8 @@ public class ThirdPesonContorller : MonoBehaviour
         legGestureHash = Animator.StringToHash("左右脚");
         leftFootHash = Animator.StringToHash("左脚IK权重");
         rightFootHash = Animator.StringToHash("右脚IK权重");
+        isHightLanding = Animator.StringToHash("是否高处落地");
+        fallHeight = Animator.StringToHash("落地高度");
     }
     //控制玩家状态
     void SwitchPlayerState()
@@ -310,9 +333,12 @@ public class ThirdPesonContorller : MonoBehaviour
             {
                 if (couldFalling)
                 {
-                    emptyHandGesture = EmptyHandGesture.Falling;
+                    emptyHandGesture = EmptyHandGesture.Falling;               
                 }
             }
+        }else if (isLanding )
+        {
+            emptyHandGesture = EmptyHandGesture.Landing;
         }
         else
         {
@@ -354,9 +380,15 @@ public class ThirdPesonContorller : MonoBehaviour
     //获取玩家实际移动方向
     void PlayerDirection()
     {
-        Vector3 camForwardProjection = new Vector3(_cameraTransform.forward.x, 0f, _cameraTransform.forward.z).normalized;
-        playerMovement = camForwardProjection * movementInput.y + _cameraTransform.right * movementInput.x;
-        playerMovement = _playerTransform.InverseTransformVector(playerMovement);        
+        if (!m_isClamping)
+        {
+            Vector3 camForwardProjection = new Vector3(_cameraTransform.forward.x, 0f, _cameraTransform.forward.z).normalized;
+            playerMovement = camForwardProjection * movementInput.y + _cameraTransform.right * movementInput.x;
+            playerMovement = _playerTransform.InverseTransformVector(playerMovement);
+        }else
+        {
+
+        }
     }
     void CheekIsGround() 
     {
@@ -365,15 +397,31 @@ public class ThirdPesonContorller : MonoBehaviour
         {
             isGround = true;
             jumpVelocity = gravity * Time.deltaTime;
+            
+            if(fallTimer < -0.6f)
+            {
+                landingThreshould = -4f;
+                isLanding = true;
+            }else if (fallTimer < -0.4f)
+            {
+                landingThreshould = -2f;
+                isLanding = true;
+            }else
+            {
+                isLanding = false;
+            }
+            fallTimer = fallTimeoutDelay;
         }
         else
         {
             isGround = false;
             couldFalling = !Physics.Raycast(transform.position, Vector3.down, minFallingDistance);
 
-            if(jumpVelocity <= 0f)
+            if(jumpVelocity <= 0f )
             {
                 jumpVelocity += gravity * fillMultiplier * Time.deltaTime;
+                fallTimer -= Time.deltaTime;
+               
             }
             else
             {
@@ -399,9 +447,19 @@ public class ThirdPesonContorller : MonoBehaviour
             {
                 legGesture = 0f;
             }
-        }
+        }       
     }
-
+  /*  void Clamping()
+    {
+        if (Physics.Raycast(charaterTop, Vector3.forward, out RaycastHit hit, 0.01f))
+        {
+            if (hit.collider.tag == "Clamping" && isClamp)
+            {
+                m_isClamping = true;
+            }
+        }
+    }*/
+   
     //设置动画状态机
     void SetAnimator()
     {
@@ -438,6 +496,11 @@ public class ThirdPesonContorller : MonoBehaviour
             _animator.SetFloat(stateHash, durationThreshould);
             _animator.SetFloat(verticalVelHash, jumpVelocity,0.1f,Time.deltaTime);
             _animator.SetFloat(legGestureHash, legGesture, 0.03f, Time.deltaTime);
+        }
+        else if(emptyHandGesture == EmptyHandGesture.Landing)
+        {
+            _animator.SetTrigger(isHightLanding);
+            _animator.SetFloat(fallHeight,landingThreshould);
         }
         if(arm == ArmState.Normal)
         {
